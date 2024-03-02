@@ -7,7 +7,9 @@
 AccelStepper stepperMotor(1, 2, 5);  // (Type of driver: with 2 pins, STEP, DIR)
 int stepperMotorMaxSpeed = 5000;
 int stepperMotorAcceleration = 100;
+int stepperMotorSpeed = 1000;
 #define calibrationSpeed 500
+bool motorStarted = false;
 
 // Define ams5600-based encoder
 AS5600 as5600;
@@ -41,8 +43,6 @@ void calibrateZeroPosition(float desiredPositionAngle = 0.f) {
     stepperMotor.stop();
     delay(500);
   }
-  // TODO: maybe limit in the time?
-
   // reduce speed for calibration and save the last speed and try
   // also, there can be allowed error, since the motor with control cannot deliver the exact position
   // try to define it - for NEMA 17 it is 200 steps / revolution (1.8 degrees)
@@ -50,8 +50,7 @@ void calibrateZeroPosition(float desiredPositionAngle = 0.f) {
   static const float allowedError = 0.9f;
   float currentAngle = as5600.readAngle() * AS5600_RAW_TO_DEGREES;
   float angularDifference = currentAngle - desiredPositionAngle;
-  if (angularDifference > 180.f)
-  {
+  if (angularDifference > 180.f) {
     angularDifference = 360.f - angularDifference;
   }
   if (abs(angularDifference) > allowedError) {
@@ -66,17 +65,17 @@ void calibrateZeroPosition(float desiredPositionAngle = 0.f) {
         break;
       } else {
         Serial.println("Calibration angular difference: " + String(angularDifference) + ", searching for position...");
-        stepperMotor.runSpeed();
       }
+      stepperMotor.run();
       // calculate difference between current and desired
       currentAngle = as5600.readAngle() * AS5600_RAW_TO_DEGREES;
       angularDifference = currentAngle - desiredPositionAngle;
-      if (angularDifference > 180.f)
-      {
+      if (angularDifference > 180.f) {
         angularDifference = 360.f - angularDifference;
       }
     }
     // reset speed
+    stepperMotor.setSpeed(stepperMotorSpeed);
     stepperMotor.setMaxSpeed(stepperMotorMaxSpeed);
   }
 }
@@ -112,12 +111,27 @@ void setup() {
   // Set maximum speed value for the stepper
   stepperMotor.setMaxSpeed(stepperMotorMaxSpeed);
   stepperMotor.setAcceleration(stepperMotorAcceleration);
+  stepperMotor.setSpeed(stepperMotorSpeed);
 
   // Calibrate absolute zero position
   calibrateZeroPosition();
 
   // delay a bit before start
   delay(1000);
+}
+
+void ExecuteCommand(String command) {
+  // extract action and value, or just basic command as start or stop
+  if (command.equals("stop")) {
+    Serial.println("stoping");
+    motorStarted = false;
+    stepperMotor.stop();
+  } else if (command.equals("start")) {
+    motorStarted = true;
+    Serial.println("starting");
+  } else if (command.equals("calibrate")) {
+    calibrateZeroPosition();
+  }
 }
 
 void loop() {
@@ -127,11 +141,15 @@ void loop() {
   // If command is passed over Serial, try to apply it
   if (readCommand(command)) {
     Serial.println("Received command: " + command);
+    ExecuteCommand(command);
   }
-
+  if (motorStarted)
+  {
+    stepperMotor.run();
+  }
   // Read encoder
   float currentAngle = as5600.readAngle() * AS5600_RAW_TO_DEGREES;
-
+  // stepperMotor.runSpeed();
   // Step the motor with a constant speed previously set by setSpeed();
   // stepperMotor.runSpeed();
   static unsigned long timer = 0;
