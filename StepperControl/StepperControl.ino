@@ -1,15 +1,28 @@
 #include <Wire.h>
 #include <AS5600.h>
-
+#include <FastLED.h>
 #include <AccelStepper.h>
 
 // Define the stepper motor and the pins that is connected to
 AccelStepper stepperMotor(1, 2, 5);  // (Type of driver: with 2 pins, STEP, DIR)
-int stepperMotorMaxSpeed = 5000;
-int stepperMotorAcceleration = 100;
-int stepperMotorSpeed = 1000;
-#define calibrationSpeed 500
+int stepperMotorMaxSpeed = 3000;
+int stepperMotorAcceleration = 6000;
+int stepperMotorSpeed = 3000;
+int stepperMotorCalibrationSpeed = 1000;
 bool motorStarted = false;
+
+#define NUM_LEDS 40
+CRGBArray<NUM_LEDS> leds;
+
+enum mode { SINGLERUN,
+            FREERUN,
+            POSITION };
+#define STEPCOUNT 1600
+int positions = 6;
+int currentPositionIndex = 0;
+float reduction = 20.f / 36.f;
+mode currentMode = mode::FREERUN;
+
 
 // Define ams5600-based encoder
 AS5600 as5600;
@@ -28,6 +41,7 @@ bool isMagnetOnEncoderDetected(size_t retry_times = retryTimeForMagnetSearch) {
     } else {
       if (as5600.magnetTooWeak()) {
         Serial.println("Magnet too weak..");
+        break;
       }
       Serial.println("Searching...");
     }
@@ -40,33 +54,28 @@ bool isMagnetOnEncoderDetected(size_t retry_times = retryTimeForMagnetSearch) {
 void calibrateZeroPosition(float desiredPositionAngle = 0.f) {
   Serial.println("Calibration...");
   if (stepperMotor.isRunning()) {
+    Serial.println("Motor stop");
     stepperMotor.stop();
     delay(500);
   }
-  // reduce speed for calibration and save the last speed and try
-  // also, there can be allowed error, since the motor with control cannot deliver the exact position
-  // try to define it - for NEMA 17 it is 200 steps / revolution (1.8 degrees)
-  // lets make allowed error to be half of it - 0.9 degrees or smaller
-  static const float allowedError = 0.9f;
+  // 3200 steps resolution
+  static const float allowedError = 0.2f;
   float currentAngle = as5600.readAngle() * AS5600_RAW_TO_DEGREES;
   float angularDifference = currentAngle - desiredPositionAngle;
   if (angularDifference > 180.f) {
     angularDifference = 360.f - angularDifference;
   }
   if (abs(angularDifference) > allowedError) {
-    // reduce speed for calibration
-    stepperMotor.setMaxSpeed(calibrationSpeed);
-    stepperMotor.setSpeed(calibrationSpeed);
     while (true) {
       if (abs(angularDifference) < allowedError) {
-        stepperMotor.stop();
         Serial.println("Calibration angular difference: " + String(angularDifference) + ", position is good enough, calibration done!");
         stepperMotor.setCurrentPosition(0);
         break;
       } else {
-        Serial.println("Calibration angular difference: " + String(angularDifference) + ", searching for position...");
+        Serial.println("Calibration angular difference: " + String(angularDifference) + +", " + String(stepperMotor.currentPosition()) + ", searching for position...");
       }
-      stepperMotor.run();
+      stepperMotor.setSpeed(stepperMotorCalibrationSpeed);
+      stepperMotor.runSpeed();
       // calculate difference between current and desired
       currentAngle = as5600.readAngle() * AS5600_RAW_TO_DEGREES;
       angularDifference = currentAngle - desiredPositionAngle;
@@ -74,9 +83,6 @@ void calibrateZeroPosition(float desiredPositionAngle = 0.f) {
         angularDifference = 360.f - angularDifference;
       }
     }
-    // reset speed
-    stepperMotor.setSpeed(stepperMotorSpeed);
-    stepperMotor.setMaxSpeed(stepperMotorMaxSpeed);
   }
 }
 
@@ -116,6 +122,9 @@ void setup() {
   // Calibrate absolute zero position
   calibrateZeroPosition();
 
+  //
+  FastLED.addLeds<NEOPIXEL, 12>(leds, NUM_LEDS);
+
   // delay a bit before start
   delay(1000);
 }
@@ -129,9 +138,26 @@ void ExecuteCommand(String command) {
   } else if (command.equals("start")) {
     motorStarted = true;
     Serial.println("starting");
+    currentMode = mode::FREERUN;
   } else if (command.equals("calibrate")) {
     calibrateZeroPosition();
+  } else if (command.equals("position")) {
+    motorStarted = true;
+    currentMode = mode::POSITION;
+    calibrateZeroPosition();
+    currentPositionIndex = 0;
+    Serial.println("positioning");
+  } else if (command.equals("singlerun")) {
+    currentMode = mode::SINGLERUN;
+    calibrateZeroPosition();
+    motorStarted = true;
   }
+}
+
+int GetPositionAfterReduction(int desiredPosition, float reductionCoef = reduction)
+{
+  float endPosition = (float)desiredPosition / reductionCoef;
+  return (int)endPosition;
 }
 
 void loop() {
@@ -143,17 +169,42 @@ void loop() {
     Serial.println("Received command: " + command);
     ExecuteCommand(command);
   }
-  if (motorStarted)
-  {
-    stepperMotor.run();
+
+  if (motorStarted) {
+    if (currentMode == mode::FREERUN) {
+      stepperMotor.setSpeed(stepperMotorSpeed);
+      stepperMotor.runSpeed();
+    } else if (currentMode == mode::POSITION) {
+      if (currentPositionIndex == 0) {
+        stepperMotor.setCurrentPosition(0);
+      }
+
+      int newPositionStep = int(currentPositionIndex * STEPCOUNT / positions);
+      newPositionStep = GetPositionAfterReduction(newPositionStep);
+      Serial.println(newPositionStep);
+      stepperMotor.moveTo(newPositionStep);
+      stepperMotor.runToPosition();
+      currentPositionIndex++;
+      if (currentPositionIndex % (positions - 1) == 0) {
+        currentPositionIndex = 0;
+      }
+      delay(200);
+    } else if (currentMode == mode::SINGLERUN) {
+      stepperMotor.setCurrentPosition(0);
+      // move full circle, but consider reduction
+      int position = GetPositionAfterReduction(STEPCOUNT);
+      stepperMotor.moveTo(position); // full circle
+      stepperMotor.runToPosition();
+      // reset to different mode and stop motor
+      currentMode = mode::FREERUN;
+      motorStarted = false;
+    }
   }
   // Read encoder
   float currentAngle = as5600.readAngle() * AS5600_RAW_TO_DEGREES;
-  // stepperMotor.runSpeed();
   // Step the motor with a constant speed previously set by setSpeed();
-  // stepperMotor.runSpeed();
   static unsigned long timer = 0;
-  unsigned long interval = 100;
+  unsigned long interval = 1000;
   if (millis() - timer >= interval) {
     timer = millis();
     Serial.println("Stepper motor pos: " + String(stepperMotor.currentPosition()) + " encoder angle: " + String(currentAngle));
