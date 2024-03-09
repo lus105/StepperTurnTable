@@ -54,7 +54,7 @@ bool isMagnetOnEncoderDetected(size_t retry_times = retryTimeForMagnetSearch) {
 // Calibrate zero (absolute) position with encoder
 void calibrateZeroPosition(float desiredPositionAngle = 0.f) {
   Serial.println("Calibration...");
-  PowerLED(true);
+  PowerLED(200, 10, 10);
   if (stepperMotor.isRunning()) {
     Serial.println("Motor stop");
     stepperMotor.stop();
@@ -72,6 +72,8 @@ void calibrateZeroPosition(float desiredPositionAngle = 0.f) {
       if (abs(angularDifference) < allowedError) {
         Serial.println("Calibration angular difference: " + String(angularDifference) + ", position is good enough, calibration done!");
         stepperMotor.setCurrentPosition(0);
+        PowerLED(20, 225, 20);
+        delay(3000);
         break;
       } else {
         Serial.println("Calibration angular difference: " + String(angularDifference) + +", " + String(stepperMotor.currentPosition()) + ", searching for position...");
@@ -125,6 +127,8 @@ void setup() {
   // setup leds
   FastLED.addLeds<WS2812, LED_PIN, RGB>(leds, NUM_LEDS);
 
+  delay(1000);
+
   // Calibrate absolute zero position
   calibrateZeroPosition();
 
@@ -157,6 +161,7 @@ void ExecuteCommand(String command) {
   }
 }
 
+// white (on), black - off
 void PowerLED(bool on)
 {
   if (on)
@@ -167,6 +172,13 @@ void PowerLED(bool on)
     fill_solid(leds, NUM_LEDS, CRGB::Black); // Turn off all LEDs
     FastLED.show();
   }
+}
+
+// defined color
+void PowerLED(byte R, byte G, byte B)
+{
+    fill_solid(leds, NUM_LEDS, CRGB(G, R, B));
+    FastLED.show();
 }
 
 void TriggerCamera()
