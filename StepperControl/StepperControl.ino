@@ -11,8 +11,9 @@ int stepperMotorSpeed = 3000;
 int stepperMotorCalibrationSpeed = 1000;
 bool motorStarted = false;
 
-#define NUM_LEDS 40
-CRGBArray<NUM_LEDS> leds;
+#define NUM_LEDS 16
+#define LED_PIN 3
+CRGB leds[NUM_LEDS];
 
 enum mode { SINGLERUN,
             FREERUN,
@@ -53,6 +54,7 @@ bool isMagnetOnEncoderDetected(size_t retry_times = retryTimeForMagnetSearch) {
 // Calibrate zero (absolute) position with encoder
 void calibrateZeroPosition(float desiredPositionAngle = 0.f) {
   Serial.println("Calibration...");
+  PowerLED(true);
   if (stepperMotor.isRunning()) {
     Serial.println("Motor stop");
     stepperMotor.stop();
@@ -84,6 +86,7 @@ void calibrateZeroPosition(float desiredPositionAngle = 0.f) {
       }
     }
   }
+  PowerLED(false);
 }
 
 // Function to read command from serial
@@ -119,11 +122,11 @@ void setup() {
   stepperMotor.setAcceleration(stepperMotorAcceleration);
   stepperMotor.setSpeed(stepperMotorSpeed);
 
+  // setup leds
+  FastLED.addLeds<WS2812, LED_PIN, RGB>(leds, NUM_LEDS);
+
   // Calibrate absolute zero position
   calibrateZeroPosition();
-
-  //
-  FastLED.addLeds<NEOPIXEL, 12>(leds, NUM_LEDS);
 
   // delay a bit before start
   delay(1000);
@@ -152,6 +155,23 @@ void ExecuteCommand(String command) {
     calibrateZeroPosition();
     motorStarted = true;
   }
+}
+
+void PowerLED(bool on)
+{
+  if (on)
+  {
+    fill_solid(leds, NUM_LEDS, CRGB::White); // Turn all LEDs white
+    FastLED.show();
+  } else {
+    fill_solid(leds, NUM_LEDS, CRGB::Black); // Turn off all LEDs
+    FastLED.show();
+  }
+}
+
+void TriggerCamera()
+{
+  delay(1000);
 }
 
 int GetPositionAfterReduction(int desiredPosition, float reductionCoef = reduction)
@@ -188,7 +208,10 @@ void loop() {
       if (currentPositionIndex % (positions - 1) == 0) {
         currentPositionIndex = 0;
       }
-      delay(200);
+      PowerLED(true);
+      delay(500);
+      TriggerCamera();
+      PowerLED(false);
     } else if (currentMode == mode::SINGLERUN) {
       stepperMotor.setCurrentPosition(0);
       // move full circle, but consider reduction
