@@ -4,7 +4,7 @@
 #include <AccelStepper.h>
 
 // Define the stepper motor and the pins that is connected to
-AccelStepper stepperMotor(1, 2, 5);  // (Type of driver: with 2 pins, STEP, DIR)
+AccelStepper stepperMotor(1, 2, 3);  // (Type of driver: with 2 pins, STEP, DIR)
 int stepperMotorMaxSpeed = 3000;
 int stepperMotorAcceleration = 6000;
 int stepperMotorSpeed = 3000;
@@ -12,7 +12,7 @@ int stepperMotorCalibrationSpeed = 1000;
 bool motorStarted = false;
 
 #define NUM_LEDS 16
-#define LED_PIN 3
+#define LED_PIN 4
 CRGB leds[NUM_LEDS];
 
 enum mode { SINGLERUN,
@@ -170,6 +170,7 @@ void PowerLED(bool on)
     FastLED.show();
   } else {
     fill_solid(leds, NUM_LEDS, CRGB::Black); // Turn off all LEDs
+    FastLED.clear();
     FastLED.show();
   }
 }
