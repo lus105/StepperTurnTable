@@ -5,14 +5,15 @@
 
 // Define the stepper motor and the pins that is connected to
 AccelStepper stepperMotor(1, 4, 3);  // (Type of driver: with 2 pins, STEP, DIR)
-int stepperMotorMaxSpeed = 3000;
+int stepperMotorMaxSpeed = 1000;
 int stepperMotorAcceleration = 6000;
-int stepperMotorSpeed = 3000;
+int stepperMotorSpeed = 1000;
 int stepperMotorCalibrationSpeed = 1000;
 bool motorStarted = false;
 
 #define NUM_LEDS 16
 #define LED_PIN 2
+#define CAMERA_PIN 5
 CRGB leds[NUM_LEDS];
 
 enum mode { SINGLERUN,
@@ -126,7 +127,8 @@ void setup() {
 
   // setup leds
   FastLED.addLeds<WS2812, LED_PIN, RGB>(leds, NUM_LEDS);
-
+  pinMode(CAMERA_PIN, OUTPUT);
+  digitalWrite(CAMERA_PIN, LOW);
   delay(1000);
 
   // Calibrate absolute zero position
@@ -184,7 +186,9 @@ void PowerLED(byte R, byte G, byte B)
 
 void TriggerCamera()
 {
-  delay(1000);
+  digitalWrite(CAMERA_PIN, HIGH);
+  delay(500);
+  digitalWrite(CAMERA_PIN, LOW);
 }
 
 int GetPositionAfterReduction(int desiredPosition, float reductionCoef = reduction)
