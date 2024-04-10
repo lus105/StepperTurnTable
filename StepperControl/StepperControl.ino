@@ -5,11 +5,12 @@
 
 // Define the stepper motor and the pins that is connected to
 AccelStepper stepperMotor(1, 4, 3);  // (Type of driver: with 2 pins, STEP, DIR)
-int stepperMotorMaxSpeed = 600;
-int stepperMotorAcceleration = 600;
-int stepperMotorSpeed = 600;
+int stepperMotorMaxSpeed = 2000;
+int stepperMotorAcceleration = 1000;
+int stepperMotorSpeed = 2000;
 int stepperMotorCalibrationSpeed = 1000;
 bool motorStarted = false;
+const int stepsPerDegree = 8;
 
 #define NUM_LEDS 16
 #define LED_PIN 2
@@ -227,7 +228,7 @@ void PowerLED(byte R, byte G, byte B)
 void TriggerCamera()
 {
   digitalWrite(CAMERA_PIN, HIGH);
-  delay(500);
+  delay(100);
   digitalWrite(CAMERA_PIN, LOW);
 }
 
@@ -311,7 +312,7 @@ void loop()
         stepperMotor.setCurrentPosition(0);
       }
       PowerLED(true);
-      delay(500);
+      delay(1000);
       TriggerCamera();
       PowerLED(false);
     }
@@ -336,6 +337,6 @@ void loop()
   if (millis() - timer >= interval)
   {
     timer = millis();
-    Serial.println("Stepper motor pos: " + String(stepperMotor.currentPosition()) + " encoder angle: " + String(currentAngle));
+    //Serial.println("Stepper motor pos: " + String(stepperMotor.currentPosition()) + " encoder angle: " + String(currentAngle));
   }
 }
