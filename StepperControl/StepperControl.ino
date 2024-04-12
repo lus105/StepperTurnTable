@@ -25,7 +25,7 @@ int positions = 6;
 int currentPositionIndex = 0;
 float reduction = 20.f / 36.f;
 mode currentMode = mode::FREERUN;
-
+bool ledPowered = false;
 
 // Define ams5600-based encoder
 AS5600 as5600;
@@ -199,6 +199,11 @@ void ExecuteCommand(String command)
     currentMode = mode::SINGLERUN;
     calibrateZeroPosition();
     motorStarted = true;
+  }
+  else if (command.equals("powerled"))
+  {
+    ledPowered = !ledPowered;
+    PowerLED(ledPowered);
   }
 }
 
