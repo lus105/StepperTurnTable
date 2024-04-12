@@ -210,7 +210,7 @@ void ExecuteCommand(String command)
 // white (on), black - off
 void PowerLED(bool on)
 {
-  if (on)
+  if (on && ledPowered)
   {
     fill_solid(leds, NUM_LEDS, CRGB::White); // Turn all LEDs white
     FastLED.show();
