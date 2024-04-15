@@ -10,7 +10,7 @@ int stepperMotorAcceleration = 1000;
 int stepperMotorSpeed = 2000;
 int stepperMotorCalibrationSpeed = 1000;
 bool motorStarted = false;
-const int stepsPerDegree = 8;
+
 
 #define NUM_LEDS 16
 #define LED_PIN 2
@@ -21,11 +21,14 @@ enum mode { SINGLERUN,
             FREERUN,
             POSITION };
 #define STEPCOUNT 1600
-int positions = 6;
+const int positions = 6;
 int currentPositionIndex = 0;
-float reduction = 20.f / 36.f;
+float motorTeeth = 20.f;
+float drivenTeeth = 36.f;
+float reduction = motorTeeth / drivenTeeth;
 mode currentMode = mode::FREERUN;
 bool ledPowered = false;
+int stepperMotorPositions[positions + 1];
 
 // Define ams5600-based encoder
 AS5600 as5600;
@@ -161,6 +164,7 @@ void setup()
 
   // Calibrate absolute zero position
   calibrateZeroPosition();
+  calculateStepperPositions();
 
   // delay a bit before start
   delay(1000);
@@ -243,34 +247,22 @@ int GetPositionAfterReduction(int desiredPosition, float reductionCoef = reducti
   return (int)endPosition;
 }
 
-// Function to move to a desired angle with error compensation
-void moveToDesiredAngle(float desiredAngle)
+void calculateStepperPositions()
 {
-  const float allowedError = 0.2f; // Acceptable error in degrees
-  float currentAngle = as5600.readAngle() * AS5600_RAW_TO_DEGREES;
-  float error = currentAngle - desiredAngle;
-
-  if (error > 180) error -= 360;
-  else if (error < -180) error += 360;
-
-  float speedReductionFactor;
-
-  while (abs(error) > allowedError)
+  for (size_t i = 0; i <= positions; i++)
   {
-    // Calculate steps needed to correct error, adjust this calculation based on your setup
-    int correctionSteps = error * stepsPerDegree; // stepsPerDegree needs to be defined based on your motor and reduction setup
-    speedReductionFactor = max(0.1, 1 - (abs(error) / 180));
-    stepperMotor.setSpeed(stepperMotorSpeed * speedReductionFactor);
-    stepperMotor.move(correctionSteps);
-    while (stepperMotor.isRunning()) stepperMotor.run();
+    int newPositionStep = int(i * STEPCOUNT / positions);
 
-    // Re-measure the angle to see if error is within acceptable bounds
-    currentAngle = as5600.readAngle() * AS5600_RAW_TO_DEGREES;
-    error = currentAngle - desiredAngle;
-    if (error > 180) error -= 360;
-    else if (error < -180) error += 360;
+    if (i == positions)
+    {
+      newPositionStep = (STEPCOUNT * drivenTeeth) / motorTeeth;
+    }
+    else
+    {
+      newPositionStep = GetPositionAfterReduction(newPositionStep);
+    }
+    stepperMotorPositions[i] = newPositionStep;
   }
-  stepperMotor.setSpeed(stepperMotorSpeed);
 }
 
 void loop()
@@ -294,28 +286,18 @@ void loop()
     }
     else if (currentMode == mode::POSITION)
     {
-      int newPositionStep = int(currentPositionIndex * STEPCOUNT / positions);
-      if (currentPositionIndex - 1 == positions)
-      {
-        newPositionStep = GetPositionAfterReduction(STEPCOUNT);
-      }
-      else
-      {
-        newPositionStep = GetPositionAfterReduction(newPositionStep);
-      }
-      Serial.println(newPositionStep);
-      stepperMotor.moveTo(newPositionStep);
+      stepperMotor.moveTo(stepperMotorPositions[currentPositionIndex]);
       while (stepperMotor.distanceToGo() != 0)
       {
         stepperMotor.run();
       }
-
       currentPositionIndex++;
-      if (currentPositionIndex % positions == 0)
+      if (currentPositionIndex % (positions + 1) == 0)
       {
         currentPositionIndex = 1;
         stepperMotor.setCurrentPosition(0);
       }
+
       PowerLED(true);
       delay(1000);
       TriggerCamera();
@@ -342,6 +324,6 @@ void loop()
   if (millis() - timer >= interval)
   {
     timer = millis();
-    //Serial.println("Stepper motor pos: " + String(stepperMotor.currentPosition()) + " encoder angle: " + String(currentAngle));
+    Serial.println("Stepper motor pos: " + String(stepperMotor.currentPosition()) + " encoder angle: " + String(currentAngle));
   }
 }
