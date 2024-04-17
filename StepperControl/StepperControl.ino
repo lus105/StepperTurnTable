@@ -281,7 +281,7 @@ void loop()
   {
     if (currentMode == mode::FREERUN)
     {
-      stepperMotor.setSpeed(stepperMotorSpeed);
+      stepperMotor.setSpeed(int(stepperMotorSpeed / 2));
       stepperMotor.runSpeed();
     }
     else if (currentMode == mode::POSITION)
